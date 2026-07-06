@@ -1,0 +1,86 @@
+// This file defines your database tables.
+// Run `npm run prisma:migrate` after editing this to apply changes to the DB.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Plan {
+  FREE
+  PRO
+  BUSINESS
+}
+
+enum ScanStatus {
+  PROCESSING
+  COMPLETE
+  REVIEW_REQUIRED
+  APPROVED
+  DISCARDED
+  FAILED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  fullName     String
+  email        String   @unique
+  passwordHash String
+  businessName String?
+  avatarUrl    String?
+  plan         Plan     @default(FREE)
+  scanLimit    Int      @default(20)
+
+  // Notification preferences (flattened rather than a separate table,
+  // since they're always fetched/updated together)
+  notifyScanComplete   Boolean @default(true)
+  notifyWeeklyReport   Boolean @default(false)
+  notifySecurityAlerts Boolean @default(true)
+  notifyProductUpdates Boolean @default(false)
+  notifyExportReady    Boolean @default(true)
+
+  scans     Scan[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Scan {
+  id         String     @id @default(uuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fileName    String
+  previewUrl  String?
+  status      ScanStatus @default(PROCESSING)
+
+  merchantName    String?
+  date            String?
+  currency        String?
+  taxAmount       Float?
+  totalAmount     Float?
+  confidenceScore Float?
+  documentType    String?
+  qualityScore    Float?
+  processingTime  Float?
+
+  lineItems LineItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model LineItem {
+  id          String @id @default(uuid())
+  scanId      String
+  scan        Scan   @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  description String
+  qty         Float
+  price       Float
+}
