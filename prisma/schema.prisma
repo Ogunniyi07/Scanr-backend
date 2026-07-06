@@ -44,6 +44,9 @@ model User {
   notifyProductUpdates Boolean @default(false)
   notifyExportReady    Boolean @default(true)
 
+  resetTokenHash   String?
+  resetTokenExpiry DateTime?
+
   scans     Scan[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -67,6 +70,7 @@ model Scan {
   documentType    String?
   qualityScore    Float?
   processingTime  Float?
+  failureReason   String?
 
   lineItems LineItem[]
 

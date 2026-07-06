@@ -45,9 +45,23 @@ async function processScanInBackground(scanId: string, filePath: string, mimeTyp
     });
   } catch (err) {
     console.error(`Scan ${scanId} extraction failed:`, err);
+
+    // Extract a human-readable message from whatever error shape we got,
+    // so the API response can tell the caller (or you, debugging) what went wrong
+    // without needing to dig through server logs every time.
+    let failureReason = "Extraction failed for an unknown reason";
+    if (err instanceof Error) {
+      failureReason = err.message;
+    }
+    // Anthropic SDK errors nest the real message inside err.error.error.message
+    const anthropicMessage = (err as any)?.error?.error?.message;
+    if (anthropicMessage) {
+      failureReason = anthropicMessage;
+    }
+
     await prisma.scan.update({
       where: { id: scanId },
-      data: { status: "FAILED" },
+      data: { status: "FAILED", failureReason },
     });
   }
 }
@@ -150,6 +164,11 @@ scansRouter.get("/:scanId/status", async (req, res) => {
     scanId: scan.id,
     status: scan.status.toLowerCase(),
     progress: scan.status === "PROCESSING" ? 50 : 100,
+    date: scan.date,
+    time: scan.createdAt,
+    category: scan.documentType,
+    totalAmount: scan.totalAmount,
+    ...(scan.status === "FAILED" && { message: scan.failureReason }),
   });
 });
 

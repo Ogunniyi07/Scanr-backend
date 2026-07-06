@@ -3,6 +3,37 @@ import fs from "fs/promises";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// Set MOCK_AI_EXTRACTION=true in .env to skip real Anthropic API calls entirely.
+// Useful for demoing/testing the full upload -> processing -> result flow
+// without spending API credits. Turn it off (or remove it) once you're ready
+// to test with real extraction.
+const USE_MOCK = process.env.MOCK_AI_EXTRACTION === "true";
+
+const MOCK_MERCHANTS = ["Fresh Mart Grocers", "Blue Bean Coffee Co.", "Electronics", "Supplies"];
+
+function buildMockExtraction(): ExtractedInvoiceData {
+  const merchant = MOCK_MERCHANTS[Math.floor(Math.random() * MOCK_MERCHANTS.length)];
+  const lineItems = [
+    { description: "Item A", qty: 2, price: 15.5 },
+    { description: "Item B", qty: 1, price: 42.0 },
+    { description: "Item C", qty: 3, price: 8.25 },
+  ];
+  const subtotal = lineItems.reduce((sum, i) => sum + i.qty * i.price, 0);
+  const tax = Math.round(subtotal * 0.075 * 100) / 100;
+
+  return {
+    merchantName: merchant,
+    date: new Date().toISOString().slice(0, 10),
+    currency: "NGN",
+    taxAmount: tax,
+    totalAmount: Math.round((subtotal + tax) * 100) / 100,
+    lineItems,
+    confidenceScore: 0.92,
+    documentType: "receipt",
+    qualityScore: 0.88,
+  };
+}
+
 // The shape we ask Claude to return. We validate against this loosely after parsing.
 export interface ExtractedInvoiceData {
   merchantName: string | null;
@@ -44,6 +75,13 @@ export async function extractInvoiceData(
   filePath: string,
   mimeType: string
 ): Promise<ExtractedInvoiceData> {
+  if (USE_MOCK) {
+    // Simulate a bit of processing delay so the UI's "processing" state is visible,
+    // rather than resolving instantly (which can look broken/too-fast in a demo).
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    return buildMockExtraction();
+  }
+
   const fileBuffer = await fs.readFile(filePath);
   const base64Data = fileBuffer.toString("base64");
 
